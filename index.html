@@ -1,0 +1,355 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SportSafe</title>
+    <!-- Tailwind CSS (CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons (CDN) -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <style>
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        body { margin: 0; padding: 0; }
+        
+        /* Pulse Animation for Traffic Lights */
+        @keyframes pulse-light {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.7); }
+            70% { transform: scale(1.05); box-shadow: 0 0 10px 10px rgba(255, 255, 255, 0); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
+        }
+        .light-active { animation: pulse-light 2s infinite; }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.2.4",
+    "clsx": "https://esm.sh/clsx@^2.1.1",
+    "react/": "https://esm.sh/react@^19.2.4/",
+    "lucide-react": "https://esm.sh/lucide-react@^0.563.0",
+    "react-leaflet": "https://esm.sh/react-leaflet@^5.0.0",
+    "leaflet": "https://esm.sh/leaflet@^1.9.4",
+    "vite": "https://esm.sh/vite@^7.3.1",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.3"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body class="bg-slate-100 text-slate-900 pb-20 font-sans antialiased">
+
+    <!-- Header -->
+    <header class="bg-slate-900 text-white shadow-xl sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="bg-orange-500 p-2 rounded-lg shadow-lg shadow-orange-500/20">
+                    <i data-lucide="cloud-sun" class="text-white w-6 h-6"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold leading-tight tracking-tight">SportSafe</h1>
+                    <p class="text-xs text-slate-400">
+                        HHWS • <span id="clock-display" class="text-slate-200 font-medium">Loading time...</span> • Midday Forecast
+                    </p>
+                </div>
+            </div>
+            <button onclick="alert('Data provided by Open-Meteo. Safety logic follows South African Heat-health Warning System (HHWS) standards.')" class="text-slate-400 hover:text-white transition-colors p-2 hover:bg-slate-800 rounded-full">
+                <i data-lucide="info" class="w-5 h-5"></i>
+            </button>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 py-8">
+        
+        <!-- Context Card -->
+        <div class="bg-white rounded-xl p-6 shadow-sm mb-8 border-l-4 border-slate-900 flex flex-col sm:flex-row gap-4 justify-between items-center">
+            <div>
+                <h2 class="text-lg font-bold text-slate-800 mb-1">Safety Dashboard</h2>
+                <p class="text-slate-600 text-sm leading-relaxed">
+                    Forecasted conditions for <strong>12:30 SAST today</strong>. 
+                    Follow the specific protocols for each risk level below.
+                </p>
+            </div>
+            <div class="flex gap-4 text-xs font-medium text-slate-500">
+                <div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full bg-green-500"></div> Standard</div>
+                <div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full bg-amber-500"></div> Modified</div>
+                <div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full bg-red-600"></div> Cancel</div>
+            </div>
+        </div>
+
+        <!-- Cards Grid -->
+        <div id="cards-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Cards injected via JS -->
+            <div class="col-span-full py-20 text-center">
+                <div class="inline-block w-8 h-8 border-4 border-slate-300 border-t-orange-500 rounded-full animate-spin mb-4"></div>
+                <p class="text-slate-500 font-medium">Loading school data...</p>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        // --- DATA ---
+        const SCHOOLS = [
+            { id: 'clifton', name: 'Clifton Prep', location: 'Nottingham Road', coordinates: { lat: -29.356, lng: 29.997 } },
+            { id: 'michaelhouse', name: 'Michaelhouse', location: 'Balgowan', coordinates: { lat: -29.400, lng: 30.040 } },
+            { id: 'st-charles', name: 'St Charles College', location: 'Pietermaritzburg', coordinates: { lat: -29.623, lng: 30.395 } },
+            { id: 'cordwalles', name: 'Cordwalles Prep', location: 'Pietermaritzburg', coordinates: { lat: -29.584, lng: 30.359 } },
+            { id: 'laddsworth', name: 'Laddsworth Primary', location: 'Hilton', coordinates: { lat: -29.558, lng: 30.297 } },
+            { id: 'hilton-college', name: 'Hilton College', location: 'Hilton', coordinates: { lat: -29.510, lng: 30.298 } },
+            { id: 'howick-prep', name: 'Howick Prep', location: 'Howick', coordinates: { lat: -29.4735, lng: 30.2274 } },
+            { id: 'treverton', name: 'Treverton', location: 'Mooi River', coordinates: { lat: -29.2136, lng: 29.9933 } },
+            { id: 'winterton-primary', name: 'Winterton Primary', location: 'Winterton', coordinates: { lat: -28.8126, lng: 29.5332 } },
+            { id: 'cowan-house', name: 'Cowan House', location: 'Hilton', coordinates: { lat: -29.556, lng: 30.298 } },
+            { id: 'epworth', name: 'Epworth', location: 'Pietermaritzburg', coordinates: { lat: -29.628, lng: 30.389 } },
+            { id: 'wykeham-collegiate', name: 'The Wykeham Collegiate', location: 'Pietermaritzburg', coordinates: { lat: -29.593, lng: 30.366 } },
+            { id: 'merchiston', name: 'Merchiston Prep', location: 'Pietermaritzburg', coordinates: { lat: -29.610, lng: 30.384 } },
+            { id: 'highbury', name: 'Highbury Prep', location: 'Hillcrest', coordinates: { lat: -29.789, lng: 30.765 } },
+        ];
+
+        let schoolsData = SCHOOLS.map(s => ({ school: s, weather: null, status: null, loading: true, error: null }));
+
+        // --- SERVICES ---
+
+        async function fetchWeather(schoolId, coords) {
+            // Check cache first (Key includes date to expire daily)
+            const options = { timeZone: 'Africa/Johannesburg', year: 'numeric', month: '2-digit', day: '2-digit' };
+            const today = new Intl.DateTimeFormat('en-CA', options).format(new Date());
+            const cacheKey = `sportSafe_v2_${schoolId}_${today}`;
+            
+            const cached = localStorage.getItem(cacheKey);
+            if (cached) return JSON.parse(cached);
+
+            const params = new URLSearchParams({
+                latitude: coords.lat,
+                longitude: coords.lng,
+                hourly: 'temperature_2m,relative_humidity_2m,apparent_temperature,shortwave_radiation',
+                timezone: 'Africa/Johannesburg',
+                forecast_days: '1',
+            });
+
+            const res = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`);
+            if (!res.ok) throw new Error('API Error');
+            const data = await res.json();
+
+            // Sample indices for 12:00 and 13:00 to approx 12:30 SAST
+            const idx1 = 12, idx2 = 13;
+            
+            const weather = {
+                temperature: Math.max(data.hourly.temperature_2m[idx1], data.hourly.temperature_2m[idx2]),
+                humidity: data.hourly.relative_humidity_2m[idx1],
+                apparentTemperature: Math.max(data.hourly.apparent_temperature[idx1], data.hourly.apparent_temperature[idx2]),
+                uvIndex: Math.min(15, parseFloat((data.hourly.shortwave_radiation[idx1] / 25).toFixed(1))),
+                timestamp: `${today}T12:30:00`
+            };
+
+            localStorage.setItem(cacheKey, JSON.stringify(weather));
+            return weather;
+        }
+
+        function calculateRisk(weather) {
+            const t = weather.apparentTemperature;
+            const uv = weather.uvIndex;
+            
+            // UV Logic
+            let exposure = "60+ mins";
+            let uvProtection = "Hat & Sunscreen advised.";
+            
+            if (uv >= 11) {
+                exposure = "< 10 mins";
+                uvProtection = "Extreme UV. Avoid direct sun. Full protection required.";
+            } else if (uv >= 8) {
+                exposure = "15-20 mins";
+                uvProtection = "Very High UV. Seek shade. Hat & sunscreen essential.";
+            } else if (uv >= 6) {
+                exposure = "25-30 mins";
+                uvProtection = "High UV. Limit exposure. Apply sunscreen.";
+            } else if (uv >= 3) {
+                exposure = "30-45 mins";
+                uvProtection = "Moderate UV. Stay in shade during breaks.";
+            }
+
+            // HHWS Heat Logic
+            if (t >= 36) return {
+                level: 'RED',
+                title: "HIGHEST ALARM",
+                protocol: "CANCEL / POSTPONE",
+                desc: "Extreme heat. Unsafe for activity.",
+                details: "Conditions are critical. Immediate cancellation of all events is required to prevent heatstroke.",
+                hydration: "Keep students indoors/cool.",
+                uv: { index: uv, exposure, protection: uvProtection }
+            };
+            if (t >= 30) return {
+                level: 'AMBER',
+                title: "DANGER TO HEALTH",
+                protocol: "MODIFIED PLAY",
+                desc: "High risk of heat exhaustion.",
+                details: "Mandate longer breaks (min 5 mins per 15 mins play). Shift to shade where possible.",
+                hydration: "Strictly enforce hydration.",
+                uv: { index: uv, exposure, protection: uvProtection }
+            };
+            return {
+                level: 'GREEN',
+                title: "STRESSFUL HEAT",
+                protocol: "STANDARD PLAY",
+                desc: "Generally safe with monitoring.",
+                details: "Onset of potential heat strain. Monitor students for early signs of discomfort.",
+                hydration: "Encourage frequent fluids.",
+                uv: { index: uv, exposure, protection: uvProtection }
+            };
+        }
+
+        // --- RENDER ---
+
+        function updateClock() {
+            const now = new Date();
+            const options = { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Africa/Johannesburg' };
+            const timeString = new Intl.DateTimeFormat('en-GB', options).format(now);
+            document.getElementById('clock-display').textContent = timeString;
+        }
+
+        function renderCards() {
+            const container = document.getElementById('cards-container');
+            
+            container.innerHTML = schoolsData.map(d => {
+                if (d.loading) return `
+                    <div class="bg-white rounded-xl shadow-sm p-6 border border-slate-200 animate-pulse h-60 flex flex-col items-center justify-center">
+                        <div class="h-4 bg-slate-200 rounded w-1/2 mb-4"></div>
+                        <span class="text-slate-400 text-sm">Loading ${d.school.name}...</span>
+                    </div>`;
+                
+                if (d.error) return `
+                    <div class="bg-red-50 rounded-xl p-6 border border-red-100 text-center flex flex-col items-center justify-center h-60">
+                        <i data-lucide="alert-triangle" class="w-8 h-8 text-red-400 mb-2"></i>
+                        <h3 class="text-red-800 font-bold">${d.school.name}</h3>
+                        <p class="text-red-600 text-xs mt-1">Connection failed</p>
+                    </div>`;
+
+                const level = d.status.level;
+                const s = d.status;
+
+                // Style configurations based on risk level
+                const config = {
+                    RED: { border: 'border-red-500', bg: 'bg-red-50', text: 'text-red-700', shadow: 'shadow-red-200' },
+                    AMBER: { border: 'border-amber-500', bg: 'bg-amber-50', text: 'text-amber-700', shadow: 'shadow-amber-200' },
+                    GREEN: { border: 'border-green-500', bg: 'bg-green-50', text: 'text-green-700', shadow: 'shadow-green-200' }
+                }[level];
+
+                // Light Bulbs
+                const lightBase = "w-10 h-10 rounded-full border-2 transition-all duration-300 shadow-md";
+                const lightInactive = "bg-slate-800 opacity-20 border-slate-700";
+                
+                return `
+                <div class="bg-white rounded-xl shadow-md overflow-hidden flex flex-col border border-slate-200 hover:shadow-xl transition-all duration-300 group">
+                    <!-- Header -->
+                    <div class="p-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center group-hover:bg-slate-100 transition-colors">
+                        <div>
+                            <h3 class="font-bold text-slate-800 text-lg leading-tight">${d.school.name}</h3>
+                            <p class="text-xs text-slate-500 flex items-center gap-1">
+                                <i data-lucide="map-pin" class="w-3 h-3"></i> ${d.school.location}
+                            </p>
+                        </div>
+                        <div class="text-right">
+                             <div class="text-2xl font-light text-slate-900">${Math.round(d.weather.temperature)}°</div>
+                        </div>
+                    </div>
+                    
+                    <div class="p-4 flex gap-4 items-stretch">
+                         <!-- Traffic Light Strip -->
+                         <div class="flex flex-col justify-center items-center gap-2 bg-slate-900 p-2 rounded-xl border-2 border-slate-700 shadow-inner min-w-[60px]">
+                            <div class="${lightBase} ${level === 'RED' ? 'bg-red-600 border-red-400 scale-110 shadow-[0_0_15px_rgba(220,38,38,0.6)]' : lightInactive}"></div>
+                            <div class="${lightBase} ${level === 'AMBER' ? 'bg-amber-500 border-amber-300 scale-110 shadow-[0_0_15px_rgba(245,158,11,0.6)]' : lightInactive}"></div>
+                            <div class="${lightBase} ${level === 'GREEN' ? 'bg-green-500 border-green-300 scale-110 shadow-[0_0_15px_rgba(34,197,94,0.6)]' : lightInactive}"></div>
+                         </div>
+                         
+                         <!-- Stats Grid -->
+                         <div class="flex-1 grid grid-cols-2 gap-2">
+                             <div class="col-span-2 bg-slate-50 p-2 rounded border border-slate-100 flex justify-between items-center">
+                                 <div class="text-xs text-slate-500">Feels Like</div>
+                                 <div class="font-bold text-slate-700">${Math.round(d.weather.apparentTemperature)}°C</div>
+                             </div>
+                             
+                             <div class="bg-slate-50 p-2 rounded border border-slate-100">
+                                <div class="text-[10px] text-slate-400 uppercase">UV Index</div>
+                                <div class="font-bold text-slate-700 text-lg">${d.weather.uvIndex}</div>
+                             </div>
+                             
+                             <div class="bg-orange-50 p-2 rounded border border-orange-100">
+                                <div class="text-[10px] text-orange-400 uppercase">Burn Time</div>
+                                <div class="font-bold text-orange-700 text-sm leading-tight">${s.uv.exposure}</div>
+                             </div>
+
+                             <div class="col-span-2 text-[10px] text-slate-500 leading-tight bg-slate-50 p-2 rounded border border-slate-100">
+                                <span class="font-bold text-slate-700 block mb-1">UV Advice:</span> ${s.uv.protection}
+                             </div>
+                         </div>
+                    </div>
+                    
+                    <!-- Footer Status -->
+                    <div class="px-4 py-3 flex-1 flex flex-col justify-end ${config.bg} border-t ${config.border}">
+                        <div class="flex items-center gap-2 mb-3">
+                            <i data-lucide="${level === 'GREEN' ? 'check-circle' : level === 'AMBER' ? 'alert-triangle' : 'alert-octagon'}" class="w-5 h-5 ${config.text}"></i>
+                            <span class="font-bold uppercase ${config.text} text-sm">${s.title}</span>
+                        </div>
+                        
+                        <div class="space-y-3">
+                            <div class="flex justify-between items-start border-b border-black/5 pb-2">
+                                <span class="text-[10px] font-bold uppercase text-slate-500 tracking-wider">Protocol</span>
+                                <span class="text-sm font-bold text-slate-900 text-right">${s.protocol}</span>
+                            </div>
+                            <div>
+                                <span class="text-[10px] font-bold uppercase text-slate-500 tracking-wider block mb-1">Required Action</span>
+                                <p class="text-xs text-slate-700 leading-relaxed font-medium">${s.details}</p>
+                            </div>
+                            <div class="bg-white/60 p-2 rounded border border-black/5 flex gap-2 items-start">
+                                <i data-lucide="droplet" class="w-3 h-3 text-blue-500 mt-0.5"></i>
+                                <p class="text-xs text-slate-800 italic flex-1">${s.hydration}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+            
+            // Initialize icons
+            if (window.lucide) {
+                lucide.createIcons();
+            }
+        }
+
+        // --- INIT ---
+
+        async function init() {
+            updateClock();
+            setInterval(updateClock, 60000); // Update time every minute
+            renderCards(); // Initial render (loading state)
+
+            // Fetch data sequentially to avoid rate limiting
+            for (let item of schoolsData) {
+                try {
+                    const weather = await fetchWeather(item.school.id, item.school.coordinates);
+                    item.weather = weather;
+                    item.status = calculateRisk(weather);
+                    item.loading = false;
+                } catch (e) {
+                    console.error(`Error fetching ${item.school.name}:`, e);
+                    item.error = "Failed";
+                    item.loading = false;
+                }
+                renderCards(); // Re-render per item for responsiveness
+                await new Promise(r => setTimeout(r, 150)); // Slight delay
+            }
+        }
+
+        // Start app
+        init();
+
+    </script>
+<script type="module" src="/index.tsx"></script>
+</body>
+</html>

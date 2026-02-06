@@ -1,0 +1,5 @@
+{
+  "name": "SA Schools Heat Safety",
+  "description": "A safety tool for South African primary schools monitoring heat-health risks for sports at 12:30 daily using SAWS HHWS guidelines.",
+  "requestFramePermissions": []
+}

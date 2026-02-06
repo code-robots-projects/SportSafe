@@ -1,0 +1,2 @@
+
+// This file is deprecated. All logic has been moved to index.html for a simplified single-file deployment.
